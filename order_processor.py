@@ -1,105 +1,77 @@
+# Constants for discount rates and tax
+# VIP customers get 10% discount
+# Employee customers get 20% discount
+# Wholesale customers get 25% discount
+# Tax rate is 8%
+# Orders over $1000 require review
 import datetime
 # order processor v2.3 - last updated by dave
 
-d = 0.1  # discount
+TAX_RATE = 0.08  # tax
+VIP_DISCOUNT_RATE = 0.1
+EMPLOYEE_DISCOUNT_RATE = 0.2
+WHOLESALE_DISCOUNT_RATE = 0.25
+REVIEW_THRESHOLD = 1000
 
-def proc(o):
+DISCOUNT_RATES = {
+    "VIP": VIP_DISCOUNT_RATE,
+    "EMPLOYEE": EMPLOYEE_DISCOUNT_RATE,
+    "WHOLESALE": WHOLESALE_DISCOUNT_RATE,
+}
+
+
+def calculate_discount(subtotal, customer_type):
+    rate = DISCOUNT_RATES.get(customer_type, 0)
+    discounted = subtotal - (subtotal * rate)
+    return round(discounted, 2)
+
+
+def proc(order):
     # process order
-    t = 0
-    for i in o["items"]:
-        p = i["p"]
-        q = i["q"]
-        if q < 0:
-            q = 0
-        if p < 0:
-            p = 0
-        t = t + (p * q)
+    subtotal = 0
+    for item in order["items"]:
+        price = item["p"]
+        quantity = item["q"]
+        if quantity < 0:
+            quantity = 0
+        if price < 0:
+            price = 0
+        subtotal = subtotal + (price * quantity)
 
-    if o.get("c") == "VIP":
-        # VIP discount
-        t = t - (t * d)
-        t = round(t, 2)
-    elif o.get("c") == "EMPLOYEE":
-        # employee discount 20%
-        t = t - (t * 0.2)
-        t = round(t, 2)
-    elif o.get("c") == "WHOLESALE":
-        t = t - (t * 0.25)
-        t = round(t, 2)
+    subtotal = calculate_discount(subtotal, order.get("c"))
+
 
     # tax
-    tax = t * 0.08
+    tax = subtotal * TAX_RATE
     tax = round(tax, 2)
-    t = t + tax
-    t = round(t, 2)
+    subtotal = subtotal + tax
+    subtotal = round(subtotal, 2)
 
     # build result
-    r = {}
-    r["order_id"] = o["id"]
-    r["dt"] = str(datetime.datetime.now())
-    r["sub"] = round(t - tax, 2)
-    r["tax"] = tax
-    r["total"] = t
-    r["st"] = "COMPLETED"
+    result = {}
+    result["order_id"] = order["id"]
+    result["dt"] = str(datetime.datetime.now())
+    result["sub"] = round(subtotal - tax, 2)
+    result["tax"] = tax
+    result["total"] = subtotal
+    result["st"] = "COMPLETED"
 
-    if t > 1000:
-        r["st"] = "REVIEW_REQUIRED"
+    if subtotal > REVIEW_THRESHOLD:
+        result["st"] = "REVIEW_REQUIRED"
 
-    if len(o["items"]) == 0:
-        r["st"] = "EMPTY"
-        r["sub"] = 0
-        r["tax"] = 0
-        r["total"] = 0
+    if len(order["items"]) == 0:
+        result["st"] = "EMPTY"
+        result["sub"] = 0
+        result["tax"] = 0
+        result["total"] = 0
 
-    return r
+    return result
 
 
 def proc_batch(orders):
     res = []
     for o in orders:
-        t = 0
-        for i in o["items"]:
-            p = i["p"]
-            q = i["q"]
-            if q < 0:
-                q = 0
-            if p < 0:
-                p = 0
-            t = t + (p * q)
-
-        if o.get("c") == "VIP":
-            t = t - (t * d)
-            t = round(t, 2)
-        elif o.get("c") == "EMPLOYEE":
-            t = t - (t * 0.2)
-            t = round(t, 2)
-        elif o.get("c") == "WHOLESALE":
-            t = t - (t * 0.25)
-            t = round(t, 2)
-
-        tax = t * 0.08
-        tax = round(tax, 2)
-        t = t + tax
-        t = round(t, 2)
-
-        r = {}
-        r["order_id"] = o["id"]
-        r["dt"] = str(datetime.datetime.now())
-        r["sub"] = round(t - tax, 2)
-        r["tax"] = tax
-        r["total"] = t
-        r["st"] = "COMPLETED"
-
-        if t > 1000:
-            r["st"] = "REVIEW_REQUIRED"
-
-        if len(o["items"]) == 0:
-            r["st"] = "EMPTY"
-            r["sub"] = 0
-            r["tax"] = 0
-            r["total"] = 0
-
-        res.append(r)
+        res.append(proc(o))
     return res
 
 
